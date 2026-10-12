@@ -1,0 +1,317 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Chat Box - Next-Gen Intelligence</title>
+  <meta name="description"
+    content="A fresh, premium AI chat box with live Web Search, multi-engine intelligence, and frosted glass design." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <!-- Ambient Background Lighting Orbs for Deep Refraction -->
+  <div class="ambient-glow orb-1" aria-hidden="true"></div>
+  <div class="ambient-glow orb-2" aria-hidden="true"></div>
+  <div class="ambient-glow orb-3" aria-hidden="true"></div>
+
+  <main class="container" role="main">
+
+    <!-- Top Developer Credit Bar -->
+    <div class="top-dev-bar">
+      <div class="top-dev-badge">
+        <span>👨‍💻</span>
+        <span class="dev-label">Dev :-</span> <strong class="pawan-highlight">Pawan Solunke</strong>
+      </div>
+      <div class="top-dev-status">
+        <span class="top-dev-pulse"></span>
+        <span>AI Studio Online</span>
+      </div>
+    </div>
+
+    <!-- Header -->
+    <header class="chat-header">
+      <div class="header-left">
+        <button id="history-toggle-btn" class="icon-btn" aria-label="Open Chat History" title="View Past Chats">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
+
+        <button id="new-chat-btn" class="new-chat-btn" title="Start a fresh conversation">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"
+            stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>New Chat</span>
+        </button>
+
+        <button id="settings-btn" class="icon-btn" aria-label="AI Settings" title="Configure AI Engine">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path
+              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+            </path>
+          </svg>
+        </button>
+
+        <button id="theme-toggle" class="icon-btn" aria-label="Toggle dark/light mode" title="Toggle theme">
+          <!-- Injected by script.js -->
+        </button>
+      </div>
+
+      <div class="header-right">
+        <div class="title-text-group">
+          <h1 id="chat-title-heading">AI Assistant</h1>
+          <span class="dev-author-tag"><span class="dev-label">Dev :-</span> <strong class="pawan-highlight">Pawan
+              Solunke</strong></span>
+          <span id="provider-badge" class="header-subtitle">Unified Live Engine</span>
+        </div>
+        <div class="avatar-wrapper">
+          <div class="bot-status-avatar">
+            <svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a8 8 0 0 0-8 8v1a4 4 0 0 0 4 4h8a4 4 0 0 0 4-4v-1a8 8 0 0 0-8-8z" />
+              <path d="M9 10h.01M15 10h.01" />
+              <path d="M9 15c.83.63 1.83 1 3 1s2.17-.37 3-1" />
+            </svg>
+          </div>
+          <span class="online-indicator" title="Online & Ready"></span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Chat History Slide-in Drawer -->
+    <aside id="history-drawer" class="history-drawer hidden" aria-label="Chat conversations">
+      <div class="drawer-header">
+        <div class="drawer-header-title">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+          <h2>Saved Chats</h2>
+        </div>
+        <button id="close-drawer-btn" class="close-btn" aria-label="Close history">&times;</button>
+      </div>
+      <div class="drawer-actions">
+        <button id="drawer-new-chat-btn" class="btn-primary full-width">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          Start New Chat
+        </button>
+      </div>
+      <div id="conversations-list" class="conversations-list">
+        <!-- Injected by script.js -->
+      </div>
+    </aside>
+
+    <!-- Chat window -->
+    <section id="chat-window" class="chat-window" aria-live="polite" aria-label="Chat messages">
+      <!-- Messages injected by script.js -->
+    </section>
+
+    <!-- Search Toolbar & Quick Prompts -->
+    <div class="search-toolbar">
+      <button id="web-search-toggle" class="web-toggle-chip active" title="Toggle Live Google / Web Search">
+        <span class="pulse-dot"></span>
+        <span>🌐 Live Search: ON</span>
+      </button>
+      <span class="search-hint">Answers backed by live web data</span>
+    </div>
+
+    <div id="quick-prompts" class="quick-prompts">
+      <button class="prompt-chip" data-prompt="tell me about mahadev">✨ Lord Mahadev</button>
+      <button class="prompt-chip" data-prompt="calculate 2*2">🧮 Math 2*2</button>
+      <button class="prompt-chip" data-prompt="info regarding cyber security">🛡️ Cyber Security</button>
+      <button class="prompt-chip" data-prompt="Who is the CEO of Google and how was it founded?">🏢 Google Info</button>
+      <button class="prompt-chip" data-prompt="Explain Quantum Computing in detail">⚛️ Quantum Tech</button>
+    </div>
+
+    <!-- Drag & Drop Overlay -->
+    <div id="drop-overlay" class="drop-overlay hidden" aria-hidden="true">
+      <div class="drop-box">
+        <span class="drop-icon">📂</span>
+        <h3>Drop Files Here</h3>
+        <p>Attach images, PDFs, TXT, or documents</p>
+      </div>
+    </div>
+
+    <!-- Input bar -->
+    <footer class="chat-input-bar">
+      <!-- Staged Attachment Tray -->
+      <div id="attachment-tray" class="attachment-tray hidden" aria-label="Attached files"></div>
+
+      <div class="input-controls-row">
+        <!-- Media Upload Buttons: Camera & Files -->
+        <div class="input-media-buttons">
+          <button id="camera-btn" class="media-btn" title="Open Camera / Snap Photo" aria-label="Open Camera">
+            <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+              <circle cx="12" cy="13" r="4"></circle>
+            </svg>
+          </button>
+
+          <button id="file-upload-btn" class="media-btn" title="Upload Image or Document (PDF, TXT, DOC, CSV)"
+            aria-label="Upload File">
+            <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path
+                d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48">
+              </path>
+            </svg>
+          </button>
+          <input type="file" id="file-input" class="hidden" accept="image/*,.pdf,.txt,.doc,.docx,.csv,.md,.json"
+            multiple />
+        </div>
+
+        <div class="textarea-wrapper">
+          <textarea id="user-input" rows="1" placeholder="Ask anything or attach image/doc... (Enter to send)"
+            autocomplete="off" aria-label="Message input"></textarea>
+        </div>
+
+        <div class="action-buttons">
+          <button id="clear-btn" aria-label="Clear chat" title="Clear current chat messages">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+          </button>
+          <button id="send-btn" aria-label="Send message" title="Send message">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </footer>
+
+  </main>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="modal-icon">⚙️</span>
+          <h2 id="modal-title">AI Engine Settings</h2>
+        </div>
+        <button id="close-modal-btn" class="close-btn" aria-label="Close settings">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="ai-mode-select" class="form-label">Intelligence Provider:</label>
+          <select id="ai-mode-select" class="form-select">
+            <option value="free">Option 1: Free Unified AI (ChatGPT + Gemini + Web Search)</option>
+            <option value="gemini">Option 2: Google Gemini (Enter API Key)</option>
+            <option value="openai">Option 3: OpenAI ChatGPT (Enter API Key)</option>
+            <option value="offline">Option 4: Smart Offline Assistant (Local)</option>
+          </select>
+        </div>
+
+        <div id="api-key-container" class="form-group api-key-group hidden">
+          <label for="api-key-input" id="api-key-label" class="form-label">API Key:</label>
+          <input type="password" id="api-key-input" class="form-input" placeholder="Paste your API key here..."
+            autocomplete="off" />
+          <span id="api-key-help" class="form-help">Stored safely in your browser localStorage.</span>
+        </div>
+
+        <div class="form-group">
+          <label for="user-name-input" class="form-label">Your Name:</label>
+          <input type="text" id="user-name-input" class="form-input" placeholder="e.g. Pawan" value="Pawan" />
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="save-settings-btn" class="btn-primary">Save & Apply Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live Camera Module Modal -->
+  <div id="camera-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true"
+    aria-labelledby="camera-modal-title">
+    <div class="modal-card camera-card">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="modal-icon">📷</span>
+          <h2 id="camera-modal-title">Live Camera Module</h2>
+        </div>
+        <button id="close-camera-btn" class="close-btn" aria-label="Close camera">&times;</button>
+      </div>
+
+      <div class="camera-body">
+        <div class="camera-viewport-wrap">
+          <video id="camera-video" autoplay playsinline muted></video>
+          <canvas id="camera-canvas" class="hidden"></canvas>
+          <img id="camera-snapshot-preview" class="camera-snapshot-preview hidden" alt="Snapshot preview" />
+          <div class="camera-viewfinder-grid" aria-hidden="true">
+            <div class="viewfinder-corner top-left"></div>
+            <div class="viewfinder-corner top-right"></div>
+            <div class="viewfinder-corner bottom-left"></div>
+            <div class="viewfinder-corner bottom-right"></div>
+          </div>
+          <div id="camera-status-msg" class="camera-status-msg hidden">Camera Active</div>
+        </div>
+
+        <div class="camera-controls">
+          <button id="switch-camera-btn" class="icon-btn" title="Flip / Switch Camera">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path
+                d="M20 10c0-4.42-3.58-8-8-8s-8 3.58-8 8c0 .34.02.67.06 1M4 14c0 4.42 3.58 8 8 8s8-3.58 8-8c0-.34-.02-.67-.06-1">
+              </path>
+              <polyline points="20 15 20 20 15 20"></polyline>
+              <polyline points="4 9 4 4 9 4"></polyline>
+            </svg>
+          </button>
+
+          <button id="shutter-btn" class="shutter-btn" title="Capture photo" aria-label="Take Photo">
+            <div class="shutter-inner"></div>
+          </button>
+
+          <div class="camera-post-snap-actions hidden" id="camera-post-actions">
+            <button id="retake-photo-btn" class="btn-secondary" title="Retake photo">
+              🔄 Retake
+            </button>
+            <button id="accept-photo-btn" class="btn-primary" title="Attach to Chat">
+              ✓ Attach Photo
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Image Lightbox Modal -->
+  <div id="lightbox-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="lightbox-card">
+      <button id="close-lightbox-btn" class="close-btn lightbox-close" aria-label="Close image">&times;</button>
+      <img id="lightbox-img" src="" alt="Full size preview" />
+      <div id="lightbox-caption" class="lightbox-caption"></div>
+    </div>
+  </div>
+
+  <!-- Toast notification -->
+  <div id="toast" class="hidden" role="alert" aria-live="assertive"></div>
+
+  <script src="script.js"></script>
+</body>
+
+</html>
