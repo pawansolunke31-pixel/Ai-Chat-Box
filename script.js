@@ -15,7 +15,7 @@ try {
 } catch (e) {
   currentUser = null;
 }
-let userName = currentUser && currentUser.name ? currentUser.name : (localStorage.getItem("user_name") || "Guest");
+let userName = currentUser && currentUser.name ? currentUser.name.trim().split(" ")[0] : (localStorage.getItem("user_name") || "Guest");
 
 // -- DOM Elements ------------------------------------------------------------
 const chatWindow = document.getElementById("chat-window");
@@ -248,6 +248,36 @@ function getConversationsStorageKey() {
   return currentUser ? `ai_conversations_${currentUser.id}` : "ai_conversations";
 }
 
+// Helper to dynamically personalize welcome greeting for whoever is currently logged in
+function updateGreetingForCurrentUser() {
+  const currentDisplayName = currentUser && currentUser.name 
+    ? currentUser.name.trim().split(" ")[0] 
+    : (localStorage.getItem("user_name") || "Guest");
+  userName = currentDisplayName;
+  localStorage.setItem("user_name", userName);
+
+  let updatedAny = false;
+  if (conversations && conversations.length > 0) {
+    conversations.forEach(conv => {
+      if (conv.messages) {
+        conv.messages.forEach(msg => {
+          if (msg.type === "bot" && (msg.text.includes("Hello ") || msg.text.startsWith("👋 Hello "))) {
+            const newText = msg.text.replace(/👋 Hello [^!]+!/g, `👋 Hello ${userName}!`);
+            if (newText !== msg.text) {
+              msg.text = newText;
+              updatedAny = true;
+            }
+          }
+        });
+      }
+    });
+  }
+
+  if (updatedAny) {
+    saveConversationsToStorage();
+  }
+}
+
 function loadConversationsFromStorage() {
   const key = getConversationsStorageKey();
   try {
@@ -259,7 +289,6 @@ function loadConversationsFromStorage() {
       const guestRaw = localStorage.getItem("ai_conversations");
       if (guestRaw && currentUser) {
         conversations = JSON.parse(guestRaw);
-        saveConversationsToStorage();
       } else {
         conversations = [];
       }
@@ -267,6 +296,8 @@ function loadConversationsFromStorage() {
   } catch (e) {
     conversations = [];
   }
+
+  updateGreetingForCurrentUser();
 
   currentChatId = localStorage.getItem(`${key}_current_chat_id`);
   if (!conversations || conversations.length === 0) {
@@ -808,6 +839,7 @@ function enterMessageEditMode(msgIndex, rowEl, bubbleEl, originalText, attachmen
 
 // -- Render All Messages -----------------------------------------------------
 function renderAllMessages() {
+  updateGreetingForCurrentUser();
   chatWindow.innerHTML = "";
   const conv = getCurrentConversation();
   if (!conv || !conv.messages) return;
@@ -1664,6 +1696,13 @@ function saveSettings() {
   if (userNameInput.value.trim()) {
     userName = userNameInput.value.trim();
     localStorage.setItem("user_name", userName);
+    if (currentUser) {
+      currentUser.name = userName;
+      localStorage.setItem("ai_current_user", JSON.stringify(currentUser));
+      updateAuthUI();
+    }
+    updateGreetingForCurrentUser();
+    renderAllMessages();
   }
 
   if (googleClientIdInput) {
@@ -1901,6 +1940,8 @@ function handleAuthSubmit() {
       name: foundUser.name,
       email: foundUser.email
     };
+    userName = currentUser.name.trim().split(" ")[0] || currentUser.name.trim();
+    localStorage.setItem("user_name", userName);
     localStorage.setItem("ai_current_user", JSON.stringify(currentUser));
     showAuthAlert(`Welcome back, ${currentUser.name}! Logging in...`, "success");
 
@@ -1908,6 +1949,7 @@ function handleAuthSubmit() {
       closeAuthModal();
       updateAuthUI();
       loadConversationsFromStorage();
+      updateGreetingForCurrentUser();
       renderAllMessages();
       renderConversationsList();
       showToast(`👋 Welcome back, ${currentUser.name}!`);
@@ -1941,6 +1983,8 @@ function handleAuthSubmit() {
       name: newUser.name,
       email: newUser.email
     };
+    userName = currentUser.name.trim().split(" ")[0] || currentUser.name.trim();
+    localStorage.setItem("user_name", userName);
     localStorage.setItem("ai_current_user", JSON.stringify(currentUser));
 
     showAuthAlert("Account created successfully! Logging you in...", "success");
@@ -1949,6 +1993,7 @@ function handleAuthSubmit() {
       closeAuthModal();
       updateAuthUI();
       loadConversationsFromStorage();
+      updateGreetingForCurrentUser();
       renderAllMessages();
       renderConversationsList();
       showToast(`🎉 Account created! Welcome, ${name}!`);
@@ -2034,6 +2079,8 @@ function handleGmailAuthSubmit() {
     email: user.email,
     provider: "gmail"
   };
+  userName = currentUser.name.trim().split(" ")[0] || currentUser.name.trim();
+  localStorage.setItem("user_name", userName);
   localStorage.setItem("ai_current_user", JSON.stringify(currentUser));
 
   showAuthAlert(`Signed in as ${user.name}! Syncing your chats...`, "success");
@@ -2042,6 +2089,7 @@ function handleGmailAuthSubmit() {
     closeAuthModal();
     updateAuthUI();
     loadConversationsFromStorage();
+    updateGreetingForCurrentUser();
     renderAllMessages();
     renderConversationsList();
     showToast(`✉️ Signed in with Gmail as ${user.name}!`);
@@ -2132,11 +2180,14 @@ function handleGoogleCredentialResponse(response) {
     avatar: user.avatar || "",
     provider: "google"
   };
+  userName = currentUser.name.trim().split(" ")[0] || currentUser.name.trim();
+  localStorage.setItem("user_name", userName);
   localStorage.setItem("ai_current_user", JSON.stringify(currentUser));
 
   closeAuthModal();
   updateAuthUI();
   loadConversationsFromStorage();
+  updateGreetingForCurrentUser();
   renderAllMessages();
   renderConversationsList();
   showToast(`🌐 Verified Google Sign-In as ${user.name}!`);
@@ -2153,6 +2204,7 @@ function handleLogout() {
 
   updateAuthUI();
   loadConversationsFromStorage();
+  updateGreetingForCurrentUser();
   renderAllMessages();
   renderConversationsList();
   showToast("🚪 Logged out. You are now in Guest mode.");
