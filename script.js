@@ -8,7 +8,14 @@ let currentMode = localStorage.getItem("ai_mode") || "free";
 let isWebSearchEnabled = localStorage.getItem("web_search_enabled") !== "false";
 let geminiApiKey = localStorage.getItem("gemini_api_key") || "";
 let openaiApiKey = localStorage.getItem("openai_api_key") || "";
-let userName = localStorage.getItem("user_name") || "Pawan";
+let currentUser = null;
+try {
+  const rawUser = localStorage.getItem("ai_current_user");
+  if (rawUser) currentUser = JSON.parse(rawUser);
+} catch (e) {
+  currentUser = null;
+}
+let userName = currentUser && currentUser.name ? currentUser.name : (localStorage.getItem("user_name") || "Guest");
 
 // -- DOM Elements ------------------------------------------------------------
 const chatWindow = document.getElementById("chat-window");
@@ -65,6 +72,36 @@ const lightboxModal = document.getElementById("lightbox-modal");
 const closeLightboxBtn = document.getElementById("close-lightbox-btn");
 const lightboxImg = document.getElementById("lightbox-img");
 const lightboxCaption = document.getElementById("lightbox-caption");
+
+// Auth & User Profile Elements
+const authLoginBtn = document.getElementById("auth-login-btn");
+const userProfileMenuWrap = document.getElementById("user-profile-menu-wrap");
+const userProfileBtn = document.getElementById("user-profile-btn");
+const userAvatarInitials = document.getElementById("user-avatar-initials");
+const userHeaderName = document.getElementById("user-header-name");
+const userDropdownCard = document.getElementById("user-dropdown-card");
+const dropdownAvatarCircle = document.getElementById("dropdown-avatar-circle");
+const dropdownUserName = document.getElementById("dropdown-user-name");
+const dropdownUserEmail = document.getElementById("dropdown-user-email");
+const dropdownSettingsBtn = document.getElementById("dropdown-settings-btn");
+const dropdownHistoryBtn = document.getElementById("dropdown-history-btn");
+const dropdownLogoutBtn = document.getElementById("dropdown-logout-btn");
+
+// Auth Modal Elements
+const authModal = document.getElementById("auth-modal");
+const closeAuthModalBtn = document.getElementById("close-auth-modal-btn");
+const authTabLogin = document.getElementById("auth-tab-login");
+const authTabSignup = document.getElementById("auth-tab-signup");
+const authAlert = document.getElementById("auth-alert");
+const authForm = document.getElementById("auth-form");
+const authNameGroup = document.getElementById("auth-name-group");
+const authNameInput = document.getElementById("auth-name-input");
+const authEmailInput = document.getElementById("auth-email-input");
+const authPasswordInput = document.getElementById("auth-password-input");
+const togglePasswordVisibilityBtn = document.getElementById("toggle-password-visibility-btn");
+const authSubmitBtn = document.getElementById("auth-submit-btn");
+const authGoogleBtn = document.getElementById("auth-google-btn");
+const authGuestBtn = document.getElementById("auth-guest-btn");
 
 
 // -- SVGs --------------------------------------------------------------------
@@ -194,29 +231,44 @@ function formatMarkdown(text) {
 }
 
 // -- Multi-Conversation State Management -------------------------------------
+function getConversationsStorageKey() {
+  return currentUser ? `ai_conversations_${currentUser.id}` : "ai_conversations";
+}
+
 function loadConversationsFromStorage() {
+  const key = getConversationsStorageKey();
   try {
-    const raw = localStorage.getItem("ai_conversations");
+    const raw = localStorage.getItem(key);
     if (raw) {
       conversations = JSON.parse(raw);
+    } else {
+      // If user has no saved conversations yet, copy current guest conversations
+      const guestRaw = localStorage.getItem("ai_conversations");
+      if (guestRaw && currentUser) {
+        conversations = JSON.parse(guestRaw);
+        saveConversationsToStorage();
+      } else {
+        conversations = [];
+      }
     }
   } catch (e) {
     conversations = [];
   }
 
-  currentChatId = localStorage.getItem("ai_current_chat_id");
+  currentChatId = localStorage.getItem(`${key}_current_chat_id`);
   if (!conversations || conversations.length === 0) {
     createNewConversation(false);
   } else if (!currentChatId || !conversations.some(c => c.id === currentChatId)) {
     currentChatId = conversations[0].id;
-    localStorage.setItem("ai_current_chat_id", currentChatId);
+    localStorage.setItem(`${key}_current_chat_id`, currentChatId);
   }
 }
 
 function saveConversationsToStorage() {
-  localStorage.setItem("ai_conversations", JSON.stringify(conversations));
+  const key = getConversationsStorageKey();
+  localStorage.setItem(key, JSON.stringify(conversations));
   if (currentChatId) {
-    localStorage.setItem("ai_current_chat_id", currentChatId);
+    localStorage.setItem(`${key}_current_chat_id`, currentChatId);
   }
 }
 
@@ -1660,6 +1712,327 @@ if (quickPrompts) {
   });
 }
 
+// ============================================================================
+// CHATGPT-STYLE AUTHENTICATION & USER PROFILE ENGINE
+// ============================================================================
+let currentAuthTab = "login";
+
+function getUsersFromStorage() {
+  try {
+    const raw = localStorage.getItem("ai_users");
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  
+  // Seed default demonstration account
+  const seedUsers = [
+    {
+      id: "usr_pawan",
+      name: "Pawan Solunke",
+      email: "pawan@example.com",
+      password: "password123",
+      createdAt: new Date().toLocaleDateString()
+    }
+  ];
+  localStorage.setItem("ai_users", JSON.stringify(seedUsers));
+  return seedUsers;
+}
+
+function saveUsersToStorage(usersList) {
+  localStorage.setItem("ai_users", JSON.stringify(usersList));
+}
+
+function getInitials(name) {
+  if (!name) return "U";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function updateAuthUI() {
+  if (currentUser) {
+    if (authLoginBtn) authLoginBtn.classList.add("hidden");
+    if (userProfileMenuWrap) userProfileMenuWrap.classList.remove("hidden");
+
+    const initials = getInitials(currentUser.name);
+    if (userAvatarInitials) userAvatarInitials.textContent = initials;
+    if (dropdownAvatarCircle) dropdownAvatarCircle.textContent = initials;
+
+    const firstName = currentUser.name.split(" ")[0];
+    if (userHeaderName) userHeaderName.textContent = firstName;
+    if (dropdownUserName) dropdownUserName.textContent = currentUser.name;
+    if (dropdownUserEmail) dropdownUserEmail.textContent = currentUser.email || "";
+
+    userName = firstName;
+    localStorage.setItem("user_name", userName);
+  } else {
+    if (authLoginBtn) authLoginBtn.classList.remove("hidden");
+    if (userProfileMenuWrap) userProfileMenuWrap.classList.add("hidden");
+    if (userDropdownCard) userDropdownCard.classList.add("hidden");
+    if (userProfileBtn) userProfileBtn.setAttribute("aria-expanded", "false");
+  }
+}
+
+function showAuthAlert(message, type = "error") {
+  if (!authAlert) return;
+  authAlert.textContent = message;
+  authAlert.className = `auth-alert ${type}`;
+  authAlert.classList.remove("hidden");
+}
+
+function hideAuthAlert() {
+  if (!authAlert) return;
+  authAlert.classList.add("hidden");
+  authAlert.textContent = "";
+}
+
+function setAuthTab(tab) {
+  currentAuthTab = tab;
+  hideAuthAlert();
+
+  if (tab === "login") {
+    authTabLogin.classList.add("active");
+    authTabSignup.classList.remove("active");
+    authNameGroup.classList.add("hidden");
+    authSubmitBtn.querySelector("span").textContent = "Log In";
+    document.getElementById("auth-modal-title").textContent = "Welcome Back";
+  } else {
+    authTabSignup.classList.add("active");
+    authTabLogin.classList.remove("active");
+    authNameGroup.classList.remove("hidden");
+    authSubmitBtn.querySelector("span").textContent = "Create Account";
+    document.getElementById("auth-modal-title").textContent = "Create Your Account";
+  }
+}
+
+function openAuthModal(defaultTab = "login") {
+  setAuthTab(defaultTab);
+  hideAuthAlert();
+  if (authForm) authForm.reset();
+  if (authPasswordInput) authPasswordInput.type = "password";
+  if (authModal) authModal.classList.remove("hidden");
+  setTimeout(() => {
+    if (defaultTab === "signup" && authNameInput) {
+      authNameInput.focus();
+    } else if (authEmailInput) {
+      authEmailInput.focus();
+    }
+  }, 120);
+}
+
+function closeAuthModal() {
+  if (authModal) authModal.classList.add("hidden");
+  hideAuthAlert();
+}
+
+function handleAuthSubmit() {
+  hideAuthAlert();
+  const email = authEmailInput.value.trim().toLowerCase();
+  const password = authPasswordInput.value;
+
+  if (!email || !password) {
+    showAuthAlert("Please fill in all required fields.", "error");
+    return;
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    showAuthAlert("Please enter a valid email address.", "error");
+    return;
+  }
+
+  if (password.length < 6) {
+    showAuthAlert("Password must be at least 6 characters.", "error");
+    return;
+  }
+
+  const users = getUsersFromStorage();
+
+  if (currentAuthTab === "login") {
+    const foundUser = users.find(u => u.email === email && u.password === password);
+    if (!foundUser) {
+      showAuthAlert("Invalid email or password. Demo account: pawan@example.com / password123", "error");
+      return;
+    }
+
+    currentUser = {
+      id: foundUser.id,
+      name: foundUser.name,
+      email: foundUser.email
+    };
+    localStorage.setItem("ai_current_user", JSON.stringify(currentUser));
+    showAuthAlert(`Welcome back, ${currentUser.name}! Logging in...`, "success");
+
+    setTimeout(() => {
+      closeAuthModal();
+      updateAuthUI();
+      loadConversationsFromStorage();
+      renderAllMessages();
+      renderConversationsList();
+      showToast(`👋 Welcome back, ${currentUser.name}!`);
+    }, 450);
+
+  } else {
+    const name = authNameInput.value.trim();
+    if (!name) {
+      showAuthAlert("Please enter your full name.", "error");
+      return;
+    }
+
+    const exists = users.some(u => u.email === email);
+    if (exists) {
+      showAuthAlert("An account with this email already exists. Please Log In.", "error");
+      return;
+    }
+
+    const newUser = {
+      id: "usr_" + Date.now(),
+      name: name,
+      email: email,
+      password: password,
+      createdAt: new Date().toLocaleDateString()
+    };
+    users.push(newUser);
+    saveUsersToStorage(users);
+
+    currentUser = {
+      id: newUser.id,
+      name: newUser.name,
+      email: newUser.email
+    };
+    localStorage.setItem("ai_current_user", JSON.stringify(currentUser));
+
+    showAuthAlert("Account created successfully! Logging you in...", "success");
+
+    setTimeout(() => {
+      closeAuthModal();
+      updateAuthUI();
+      loadConversationsFromStorage();
+      renderAllMessages();
+      renderConversationsList();
+      showToast(`🎉 Account created! Welcome, ${name}!`);
+    }, 450);
+  }
+}
+
+function handleGoogleAuth() {
+  const users = getUsersFromStorage();
+  const googleName = userName && userName !== "Guest" ? userName : "Pawan Solunke";
+  const googleEmail = (googleName.toLowerCase().replace(/\s+/g, ".") || "user") + "@gmail.com";
+
+  let googleUser = users.find(u => u.email === googleEmail);
+  if (!googleUser) {
+    googleUser = {
+      id: "usr_google_" + Date.now(),
+      name: googleName,
+      email: googleEmail,
+      provider: "google",
+      createdAt: new Date().toLocaleDateString()
+    };
+    users.push(googleUser);
+    saveUsersToStorage(users);
+  }
+
+  currentUser = {
+    id: googleUser.id,
+    name: googleUser.name,
+    email: googleUser.email
+  };
+  localStorage.setItem("ai_current_user", JSON.stringify(currentUser));
+
+  closeAuthModal();
+  updateAuthUI();
+  loadConversationsFromStorage();
+  renderAllMessages();
+  renderConversationsList();
+  showToast(`🌐 Signed in with Google as ${googleUser.name}!`);
+}
+
+function handleLogout() {
+  currentUser = null;
+  localStorage.removeItem("ai_current_user");
+  userName = "Guest";
+  localStorage.setItem("user_name", userName);
+
+  if (userDropdownCard) userDropdownCard.classList.add("hidden");
+  if (userProfileBtn) userProfileBtn.setAttribute("aria-expanded", "false");
+
+  updateAuthUI();
+  loadConversationsFromStorage();
+  renderAllMessages();
+  renderConversationsList();
+  showToast("🚪 Logged out. You are now in Guest mode.");
+}
+
+// Auth Event Listeners
+if (authLoginBtn) authLoginBtn.addEventListener("click", () => openAuthModal("login"));
+if (closeAuthModalBtn) closeAuthModalBtn.addEventListener("click", closeAuthModal);
+if (authTabLogin) authTabLogin.addEventListener("click", () => setAuthTab("login"));
+if (authTabSignup) authTabSignup.addEventListener("click", () => setAuthTab("signup"));
+
+if (authForm) {
+  authForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    handleAuthSubmit();
+  });
+}
+
+if (togglePasswordVisibilityBtn && authPasswordInput) {
+  togglePasswordVisibilityBtn.addEventListener("click", () => {
+    const isPassword = authPasswordInput.type === "password";
+    authPasswordInput.type = isPassword ? "text" : "password";
+    togglePasswordVisibilityBtn.style.color = isPassword ? "var(--accent-color)" : "";
+  });
+}
+
+if (authGoogleBtn) authGoogleBtn.addEventListener("click", handleGoogleAuth);
+if (authGuestBtn) authGuestBtn.addEventListener("click", closeAuthModal);
+
+if (authModal) {
+  authModal.addEventListener("click", (e) => {
+    if (e.target === authModal) closeAuthModal();
+  });
+}
+
+// User Profile Dropdown Listeners
+if (userProfileBtn && userDropdownCard) {
+  userProfileBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const isExpanded = userProfileBtn.getAttribute("aria-expanded") === "true";
+    userProfileBtn.setAttribute("aria-expanded", !isExpanded);
+    userDropdownCard.classList.toggle("hidden", isExpanded);
+  });
+}
+
+if (dropdownSettingsBtn) {
+  dropdownSettingsBtn.addEventListener("click", () => {
+    if (userDropdownCard) userDropdownCard.classList.add("hidden");
+    if (userProfileBtn) userProfileBtn.setAttribute("aria-expanded", "false");
+    openSettingsModal();
+  });
+}
+
+if (dropdownHistoryBtn) {
+  dropdownHistoryBtn.addEventListener("click", () => {
+    if (userDropdownCard) userDropdownCard.classList.add("hidden");
+    if (userProfileBtn) userProfileBtn.setAttribute("aria-expanded", "false");
+    openHistoryDrawer();
+  });
+}
+
+if (dropdownLogoutBtn) {
+  dropdownLogoutBtn.addEventListener("click", handleLogout);
+}
+
+// Close profile dropdown when clicking outside
+document.addEventListener("click", (e) => {
+  if (userDropdownCard && !userDropdownCard.classList.contains("hidden")) {
+    if (userProfileMenuWrap && !userProfileMenuWrap.contains(e.target)) {
+      userDropdownCard.classList.add("hidden");
+      if (userProfileBtn) userProfileBtn.setAttribute("aria-expanded", "false");
+    }
+  }
+});
+
 // -- Initializer -------------------------------------------------------------
 (function init() {
   if (!localStorage.getItem("ai_mode") || localStorage.getItem("ai_mode") === "offline" || localStorage.getItem("ai_mode") === "gemini") {
@@ -1671,6 +2044,7 @@ if (quickPrompts) {
   applyTheme(savedTheme);
   updateProviderBadge();
   updateWebSearchUI();
+  updateAuthUI();
 
   loadConversationsFromStorage();
 
@@ -1690,3 +2064,4 @@ if (quickPrompts) {
   renderConversationsList();
   userInput.focus();
 })();
+
