@@ -83,6 +83,7 @@ const userDropdownCard = document.getElementById("user-dropdown-card");
 const dropdownAvatarCircle = document.getElementById("dropdown-avatar-circle");
 const dropdownUserName = document.getElementById("dropdown-user-name");
 const dropdownUserEmail = document.getElementById("dropdown-user-email");
+const dropdownUserBadge = document.getElementById("dropdown-user-badge");
 const dropdownSettingsBtn = document.getElementById("dropdown-settings-btn");
 const dropdownHistoryBtn = document.getElementById("dropdown-history-btn");
 const dropdownLogoutBtn = document.getElementById("dropdown-logout-btn");
@@ -102,6 +103,18 @@ const togglePasswordVisibilityBtn = document.getElementById("toggle-password-vis
 const authSubmitBtn = document.getElementById("auth-submit-btn");
 const authGoogleBtn = document.getElementById("auth-google-btn");
 const authGuestBtn = document.getElementById("auth-guest-btn");
+
+// Dedicated Gmail View & Google Identity Elements
+const authStandardView = document.getElementById("auth-standard-view");
+const authGmailView = document.getElementById("auth-gmail-view");
+const gmailAuthForm = document.getElementById("gmail-auth-form");
+const gmailEmailInput = document.getElementById("gmail-email-input");
+const gmailNameInput = document.getElementById("gmail-name-input");
+const gmailPasswordInput = document.getElementById("gmail-password-input");
+const gmailSubmitBtn = document.getElementById("gmail-submit-btn");
+const backToStandardBtn = document.getElementById("back-to-standard-btn");
+const googleGisContainer = document.getElementById("google-gis-container");
+const googleClientIdInput = document.getElementById("google-client-id-input");
 
 
 // -- SVGs --------------------------------------------------------------------
@@ -1605,6 +1618,9 @@ function updateProviderBadge() {
 function openSettingsModal() {
   aiModeSelect.value = currentMode;
   userNameInput.value = userName;
+  if (googleClientIdInput) {
+    googleClientIdInput.value = localStorage.getItem("ai_google_client_id") || "";
+  }
   updateApiKeyFieldVisibility();
   settingsModal.classList.remove("hidden");
 }
@@ -1648,6 +1664,12 @@ function saveSettings() {
   if (userNameInput.value.trim()) {
     userName = userNameInput.value.trim();
     localStorage.setItem("user_name", userName);
+  }
+
+  if (googleClientIdInput) {
+    const cid = googleClientIdInput.value.trim();
+    localStorage.setItem("ai_google_client_id", cid);
+    initGoogleIdentityServices();
   }
 
   if (currentMode === "gemini") {
@@ -1754,13 +1776,31 @@ function updateAuthUI() {
     if (userProfileMenuWrap) userProfileMenuWrap.classList.remove("hidden");
 
     const initials = getInitials(currentUser.name);
-    if (userAvatarInitials) userAvatarInitials.textContent = initials;
-    if (dropdownAvatarCircle) dropdownAvatarCircle.textContent = initials;
+    if (currentUser.avatar) {
+      if (userAvatarInitials) {
+        userAvatarInitials.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.name}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" />`;
+      }
+      if (dropdownAvatarCircle) {
+        dropdownAvatarCircle.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.name}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" />`;
+      }
+    } else {
+      if (userAvatarInitials) userAvatarInitials.textContent = initials;
+      if (dropdownAvatarCircle) dropdownAvatarCircle.textContent = initials;
+    }
 
     const firstName = currentUser.name.split(" ")[0];
     if (userHeaderName) userHeaderName.textContent = firstName;
     if (dropdownUserName) dropdownUserName.textContent = currentUser.name;
     if (dropdownUserEmail) dropdownUserEmail.textContent = currentUser.email || "";
+
+    if (dropdownUserBadge) {
+      if (currentUser.provider === "gmail" || currentUser.provider === "google") {
+        dropdownUserBadge.classList.remove("hidden");
+        dropdownUserBadge.innerHTML = "✓ Gmail Verified";
+      } else {
+        dropdownUserBadge.classList.add("hidden");
+      }
+    }
 
     userName = firstName;
     localStorage.setItem("user_name", userName);
@@ -1769,6 +1809,7 @@ function updateAuthUI() {
     if (userProfileMenuWrap) userProfileMenuWrap.classList.add("hidden");
     if (userDropdownCard) userDropdownCard.classList.add("hidden");
     if (userProfileBtn) userProfileBtn.setAttribute("aria-expanded", "false");
+    if (dropdownUserBadge) dropdownUserBadge.classList.add("hidden");
   }
 }
 
@@ -1805,6 +1846,7 @@ function setAuthTab(tab) {
 }
 
 function openAuthModal(defaultTab = "login") {
+  showStandardAuthView();
   setAuthTab(defaultTab);
   hideAuthAlert();
   if (authForm) authForm.reset();
@@ -1914,28 +1956,181 @@ function handleAuthSubmit() {
   }
 }
 
-function handleGoogleAuth() {
-  const users = getUsersFromStorage();
-  const googleName = userName && userName !== "Guest" ? userName : "Pawan Solunke";
-  const googleEmail = (googleName.toLowerCase().replace(/\s+/g, ".") || "user") + "@gmail.com";
+// Dedicated Gmail View Switchers
+function showGmailAuthView() {
+  if (authStandardView) authStandardView.classList.add("hidden");
+  if (authGmailView) authGmailView.classList.remove("hidden");
+  hideAuthAlert();
+  if (gmailEmailInput) {
+    gmailEmailInput.value = "";
+    gmailEmailInput.focus();
+  }
+  if (gmailNameInput) gmailNameInput.value = "";
+  if (gmailPasswordInput) gmailPasswordInput.value = "";
+  initGoogleIdentityServices();
+}
 
-  let googleUser = users.find(u => u.email === googleEmail);
-  if (!googleUser) {
-    googleUser = {
-      id: "usr_google_" + Date.now(),
-      name: googleName,
-      email: googleEmail,
-      provider: "google",
+function showStandardAuthView() {
+  if (authGmailView) authGmailView.classList.add("hidden");
+  if (authStandardView) authStandardView.classList.remove("hidden");
+  hideAuthAlert();
+}
+
+// Personal Gmail Login Handler
+function handleGmailAuthSubmit() {
+  hideAuthAlert();
+  const email = gmailEmailInput ? gmailEmailInput.value.trim().toLowerCase() : "";
+  let name = gmailNameInput ? gmailNameInput.value.trim() : "";
+  const password = gmailPasswordInput ? gmailPasswordInput.value : "";
+
+  if (!email) {
+    showAuthAlert("Please enter your Gmail address.", "error");
+    return;
+  }
+
+  const isGmail = /^[a-zA-Z0-9._%+-]+@(gmail|googlemail)\.com$/i.test(email);
+  if (!isGmail) {
+    showAuthAlert("Please enter a valid personal Gmail address ending in @gmail.com", "error");
+    return;
+  }
+
+  if (!password || password.length < 6) {
+    showAuthAlert("Password must be at least 6 characters.", "error");
+    return;
+  }
+
+  if (!name) {
+    const prefix = email.split("@")[0].replace(/[._-]+/g, " ");
+    name = prefix.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  }
+
+  const users = getUsersFromStorage();
+  let user = users.find(u => u.email === email);
+
+  if (user) {
+    if (user.password && user.password !== password) {
+      showAuthAlert("Incorrect password for this Gmail account.", "error");
+      return;
+    }
+    if (name) user.name = name;
+    user.provider = "gmail";
+    saveUsersToStorage(users);
+  } else {
+    user = {
+      id: "usr_gmail_" + Date.now(),
+      name: name,
+      email: email,
+      password: password,
+      provider: "gmail",
       createdAt: new Date().toLocaleDateString()
     };
-    users.push(googleUser);
+    users.push(user);
     saveUsersToStorage(users);
   }
 
   currentUser = {
-    id: googleUser.id,
-    name: googleUser.name,
-    email: googleUser.email
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    provider: "gmail"
+  };
+  localStorage.setItem("ai_current_user", JSON.stringify(currentUser));
+
+  showAuthAlert(`Signed in as ${user.name}! Syncing your chats...`, "success");
+
+  setTimeout(() => {
+    closeAuthModal();
+    updateAuthUI();
+    loadConversationsFromStorage();
+    renderAllMessages();
+    renderConversationsList();
+    showToast(`✉️ Signed in with Gmail as ${user.name}!`);
+  }, 450);
+}
+
+// Google Identity Services (GIS) / 1-Tap OAuth
+function initGoogleIdentityServices() {
+  const clientId = localStorage.getItem("ai_google_client_id") || "";
+  if (!googleGisContainer) return;
+
+  if (clientId && window.google && window.google.accounts && window.google.accounts.id) {
+    try {
+      google.accounts.id.initialize({
+        client_id: clientId,
+        callback: handleGoogleCredentialResponse,
+        auto_select: false,
+        cancel_on_tap_outside: true
+      });
+      googleGisContainer.innerHTML = "";
+      google.accounts.id.renderButton(googleGisContainer, {
+        theme: "outline",
+        size: "large",
+        shape: "rectangular",
+        text: "signin_with",
+        logo_alignment: "left",
+        width: 320
+      });
+      return;
+    } catch (err) {
+      console.warn("GIS button initialization error:", err);
+    }
+  }
+
+  googleGisContainer.innerHTML = `
+    <div class="gis-helper-info">
+      <span>🔑 Enter your personal Gmail below to sign in directly & sync your chats.</span>
+    </div>
+  `;
+}
+
+function parseJwt(token) {
+  try {
+    const base64Url = token.split(".")[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map(c => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    return null;
+  }
+}
+
+function handleGoogleCredentialResponse(response) {
+  if (!response || !response.credential) return;
+  const payload = parseJwt(response.credential);
+  if (!payload || !payload.email) return;
+
+  const users = getUsersFromStorage();
+  let user = users.find(u => u.email === payload.email);
+
+  if (!user) {
+    user = {
+      id: "usr_google_" + (payload.sub || Date.now()),
+      name: payload.name || payload.email.split("@")[0],
+      email: payload.email,
+      avatar: payload.picture || "",
+      provider: "google",
+      createdAt: new Date().toLocaleDateString()
+    };
+    users.push(user);
+    saveUsersToStorage(users);
+  } else {
+    if (payload.picture) user.avatar = payload.picture;
+    if (payload.name) user.name = payload.name;
+    user.provider = "google";
+    saveUsersToStorage(users);
+  }
+
+  currentUser = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    avatar: user.avatar || "",
+    provider: "google"
   };
   localStorage.setItem("ai_current_user", JSON.stringify(currentUser));
 
@@ -1944,7 +2139,7 @@ function handleGoogleAuth() {
   loadConversationsFromStorage();
   renderAllMessages();
   renderConversationsList();
-  showToast(`🌐 Signed in with Google as ${googleUser.name}!`);
+  showToast(`🌐 Verified Google Sign-In as ${user.name}!`);
 }
 
 function handleLogout() {
@@ -1984,8 +2179,16 @@ if (togglePasswordVisibilityBtn && authPasswordInput) {
   });
 }
 
-if (authGoogleBtn) authGoogleBtn.addEventListener("click", handleGoogleAuth);
+if (authGoogleBtn) authGoogleBtn.addEventListener("click", showGmailAuthView);
+if (backToStandardBtn) backToStandardBtn.addEventListener("click", showStandardAuthView);
 if (authGuestBtn) authGuestBtn.addEventListener("click", closeAuthModal);
+
+if (gmailAuthForm) {
+  gmailAuthForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    handleGmailAuthSubmit();
+  });
+}
 
 if (authModal) {
   authModal.addEventListener("click", (e) => {
@@ -2045,6 +2248,7 @@ document.addEventListener("click", (e) => {
   updateProviderBadge();
   updateWebSearchUI();
   updateAuthUI();
+  initGoogleIdentityServices();
 
   loadConversationsFromStorage();
 

@@ -2292,4 +2292,112 @@ body {
   border-color: var(--accent-color);
   color: var(--accent-color);
   background: rgba(99, 102, 241, 0.05);
-}
+}
+
+/* ============================================================================
+   GMAIL DEDICATED SIGN-IN STYLES
+   ============================================================================ */
+
+.auth-gmail-view {
+  animation: fadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.gmail-view-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 1.3rem;
+  gap: 6px;
+}
+
+.gmail-brand-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  margin-bottom: 4px;
+}
+
+[data-theme="light"] .gmail-brand-icon {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.gmail-view-header h3 {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.gmail-view-header p {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  max-width: 300px;
+  line-height: 1.45;
+}
+
+.google-gis-container {
+  margin-bottom: 1rem;
+  display: flex;
+  justify-content: center;
+}
+
+.gmail-footer-row {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: center;
+}
+
+.btn-text {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.btn-text:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="light"] .btn-text:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.user-provider-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.68rem;
+  color: #60a5fa;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 999px;
+  padding: 1px 6px;
+  margin-top: 2px;
+}
+
+.gis-helper-info {
+  background: rgba(66, 133, 244, 0.08);
+  border: 1px dashed rgba(66, 133, 244, 0.28);
+  border-radius: 12px;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  text-align: center;
+  width: 100%;
+}
+
+
