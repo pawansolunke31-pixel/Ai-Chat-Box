@@ -635,10 +635,119 @@ body {
   font-family: var(--font-mono);
 }
 
-/* Code blocks inside bot messages */
+/* Code blocks & Markdown inside bot messages */
 .message-bubble code {
   font-family: var(--font-mono);
   font-size: 0.85rem;
+}
+
+.inline-code {
+  background: rgba(255, 255, 255, 0.12);
+  color: #a5b4fc;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.86rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="light"] .inline-code {
+  background: #f1f5f9;
+  color: #4338ca;
+  border-color: #cbd5e1;
+}
+
+.code-block-wrapper {
+  margin: 10px 0;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.code-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 12px;
+  background: rgba(30, 41, 59, 0.88);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.74rem;
+  font-family: var(--font-mono);
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.code-copy-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #e2e8f0;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.code-copy-btn:hover {
+  background: var(--accent-color);
+  color: #ffffff;
+  border-color: var(--accent-color);
+}
+
+.code-pre {
+  margin: 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: #f1f5f9;
+  background: transparent;
+}
+
+.md-h2 {
+  font-size: 1.22rem;
+  margin: 12px 0 6px;
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.md-h3 {
+  font-size: 1.08rem;
+  margin: 10px 0 4px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.md-h4 {
+  font-size: 0.98rem;
+  margin: 8px 0 3px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.md-list-item {
+  margin-left: 6px;
+  margin-bottom: 3px;
+  line-height: 1.45;
+}
+
+.md-num {
+  font-weight: 600;
+  color: #818cf8;
+}
+
+.chat-link {
+  color: #818cf8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.15s ease;
+}
+
+.chat-link:hover {
+  color: #a5b4fc;
 }
 
 /* -- Typing indicator -- */

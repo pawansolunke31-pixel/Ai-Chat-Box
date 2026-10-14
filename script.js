@@ -114,19 +114,83 @@ function getCurrentTime() {
   return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+// Global helper for code block copy button
+window.copyCodeSnippet = function(btn) {
+  const wrapper = btn.closest(".code-block-wrapper");
+  if (!wrapper) return;
+  const codeEl = wrapper.querySelector("code");
+  if (!codeEl) return;
+  const codeText = codeEl.textContent || "";
+  copyMessageText(codeText);
+  const origText = btn.textContent;
+  btn.textContent = "Copied! ✓";
+  btn.style.background = "#10b981";
+  btn.style.color = "#ffffff";
+  setTimeout(() => {
+    btn.textContent = origText;
+    btn.style.background = "";
+    btn.style.color = "";
+  }, 2000);
+};
+
 function formatMarkdown(text) {
   if (!text) return "";
-  let formatted = text
+
+  const codeBlocks = [];
+  // 1. Extract and preserve code blocks (triple backticks)
+  let processed = text.replace(/```([a-zA-Z0-9_\-\+]*)\r?\n([\s\S]*?)```/g, (match, lang, code) => {
+    const id = `___CODE_BLOCK_${codeBlocks.length}___`;
+    codeBlocks.push({ lang: (lang || "code").trim(), code: code.trim() });
+    return id;
+  });
+
+  // 2. Escape HTML special characters
+  processed = processed
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
-  formatted = formatted.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-  formatted = formatted.replace(/\*(.*?)\*/g, "<em>$1</em>");
-  formatted = formatted.replace(/`([^`]+)`/g, "<code style='background:rgba(255,255,255,0.1);padding:2px 5px;border-radius:4px;'>$1</code>");
-  formatted = formatted.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, "<a href='$2' target='_blank' style='color:#818cf8;text-decoration:underline;'>$1</a>");
-  formatted = formatted.replace(/\n/g, "<br>");
-  return formatted;
+  // 3. Headers
+  processed = processed.replace(/^### (.*$)/gim, '<h4 class="md-h4">$1</h4>');
+  processed = processed.replace(/^## (.*$)/gim, '<h3 class="md-h3">$1</h3>');
+  processed = processed.replace(/^# (.*$)/gim, '<h2 class="md-h2">$1</h2>');
+
+  // 4. Bold and Italics
+  processed = processed.replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  processed = processed.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  processed = processed.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+  // 5. Inline Code
+  processed = processed.replace(/`([^`\r\n]+)`/g, '<code class="inline-code">$1</code>');
+
+  // 6. Links
+  processed = processed.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="chat-link">$1</a>');
+
+  // 7. Bullet Lists & Numbered lists
+  processed = processed.replace(/^\s*[-*•]\s+(.*)$/gim, '<div class="md-list-item">• $1</div>');
+  processed = processed.replace(/^\s*(\d+)\.\s+(.*)$/gim, '<div class="md-list-item"><span class="md-num">$1.</span> $2</div>');
+
+  // 8. Line breaks (preserve spacing)
+  processed = processed.replace(/\r?\n/g, '<br>');
+
+  // 9. Reinsert formatted code blocks with copy button
+  codeBlocks.forEach((block, i) => {
+    const escaped = block.code
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+    const blockHtml = `
+      <div class="code-block-wrapper">
+        <div class="code-block-header">
+          <span class="code-lang">${block.lang}</span>
+          <button class="code-copy-btn" onclick="copyCodeSnippet(this)">Copy</button>
+        </div>
+        <pre class="code-pre"><code class="code-content">${escaped}</code></pre>
+      </div>`;
+    processed = processed.replace(`___CODE_BLOCK_${i}___`, blockHtml);
+  });
+
+  return processed;
 }
 
 // -- Multi-Conversation State Management -------------------------------------
@@ -839,21 +903,37 @@ function hideTyping() {
 }
 
 // ============================================================================
-// 1. SMART INSTANT MATH CALCULATOR
+// 1. SMART INSTANT MATH & COMPUTATION ENGINE
 // ============================================================================
 function tryCalculateMath(input) {
+  if (!input || typeof input !== "string") return null;
   const clean = input.trim().toLowerCase();
+
+  // Handle percentage questions e.g. "15% of 250" or "what is 20% of 500"
+  const percentMatch = clean.match(/(?:what is\s+|calculate\s+|find\s+)?(\d+(?:\.\d+)?)\s*%\s*(?:of)?\s*(\d+(?:\.\d+)?)/i);
+  if (percentMatch) {
+    const p = parseFloat(percentMatch[1]);
+    const total = parseFloat(percentMatch[2]);
+    const result = (p / 100) * total;
+    return `🧮 **Math Calculation:**\n${p}% of ${total} = **${result}**`;
+  }
+
+  // Strip prefixes & punctuation
   const stripped = clean
-    .replace(/^(calculate|solve|evaluate|what is|compute)\s+/i, "")
+    .replace(/^(calculate|solve|evaluate|what is|compute|find|tell me)\s+/i, "")
     .replace(/[?!=]/g, "")
     .trim();
 
-  if (/^[\d\s\+\-\*\/\.\(\)\^]+$/.test(stripped) && /[\+\-\*\/]/.test(stripped)) {
+  // Match standard arithmetic: digits, operators, parens, decimal, powers
+  if (/^[\d\s\+\-\*\/\.\(\)\^]+$/.test(stripped) && /[\+\-\*\/\^]/.test(stripped)) {
     try {
       const sanitized = stripped.replace(/\^/g, "**").replace(/[^0-9\+\-\*\/\.\(\)]/g, "");
-      const result = Function(`'use strict'; return (${sanitized})`)();
-      if (typeof result === "number" && !isNaN(result)) {
-        return `${stripped} = ${result} 🧮`;
+      // Disallow illegal patterns
+      if (!/(\*\*|\+\+|\-\-|\/\/)/.test(sanitized.replace(/\*\*/g, ""))) {
+        const result = Function(`'use strict'; return (${sanitized})`)();
+        if (typeof result === "number" && !isNaN(result) && isFinite(result)) {
+          return `🧮 **Math Calculation:**\n\`${stripped}\` = **${result}**`;
+        }
       }
     } catch (e) {}
   }
@@ -861,23 +941,64 @@ function tryCalculateMath(input) {
 }
 
 // ============================================================================
-// 2. COMPLETE WEB & GOOGLE KNOWLEDGE RESOLVER (FULL LENGTH)
+// 2. LIVE WEB & ENCYCLOPEDIC KNOWLEDGE RETRIEVAL
 // ============================================================================
 async function fetchFullWebKnowledge(query) {
+  if (!query || typeof query !== "string") return null;
+
   const cleanQuery = query
-    .replace(/^(tell me about|who is|what is|information regarding|info on|explain|where is|give me details on|details of|price of)\s+/i, "")
+    .replace(/^(tell me about|who is|what is|information regarding|info on|explain|where is|give me details on|details of|price of|can you explain|history of|summary of)\s+/i, "")
     .replace(/[?.,!]/g, "")
     .trim();
 
   if (!cleanQuery || cleanQuery.length < 2) return null;
 
   try {
-    // 1. DuckDuckGo Instant Knowledge API
+    // 1. Direct Wikipedia REST Summary API (fastest & high-fidelity factual extract)
+    const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(cleanQuery)}`;
+    const summaryRes = await fetch(summaryUrl, {
+      headers: { "Accept": "application/json" }
+    }).catch(() => null);
+
+    if (summaryRes && summaryRes.ok) {
+      const data = await summaryRes.json().catch(() => null);
+      if (data && data.extract && data.type !== "disambiguation" && data.extract.length > 35) {
+        return {
+          title: data.title,
+          extract: data.extract,
+          url: data.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(data.title)}`
+        };
+      }
+    }
+
+    // 2. Wikipedia OpenSearch lookup if direct title didn't resolve directly
+    const sUrl = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(cleanQuery)}&limit=3&format=json&origin=*`;
+    const sRes = await fetch(sUrl).catch(() => null);
+    if (sRes && sRes.ok) {
+      const sData = await sRes.json().catch(() => null);
+      if (sData && sData[1] && sData[1].length > 0) {
+        for (const title of sData[1]) {
+          const candRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`).catch(() => null);
+          if (candRes && candRes.ok) {
+            const candData = await candRes.json().catch(() => null);
+            if (candData && candData.extract && candData.type !== "disambiguation" && candData.extract.length > 35) {
+              return {
+                title: candData.title,
+                extract: candData.extract,
+                url: candData.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(candData.title)}`
+              };
+            }
+          }
+        }
+      }
+    }
+
+    // 3. DuckDuckGo Instant Knowledge API
     const ddgUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(cleanQuery)}&format=json&no_html=1&skip_disambig=1`;
     const ddgRes = await fetch(ddgUrl).catch(() => null);
     if (ddgRes && ddgRes.ok) {
       const ddgData = await ddgRes.json().catch(() => null);
-      if (ddgData && ddgData.Abstract && ddgData.Abstract.length > 50) {
+      if (ddgData && ddgData.Abstract && ddgData.Abstract.length > 30) {
         return {
           title: ddgData.Heading || cleanQuery,
           extract: ddgData.Abstract,
@@ -885,185 +1006,172 @@ async function fetchFullWebKnowledge(query) {
         };
       }
     }
-
-    // 2. Wikipedia OpenSearch candidates with automatic redirect resolution
-    const sUrl = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(cleanQuery)}&limit=3&format=json&origin=*`;
-    const sRes = await fetch(sUrl).catch(() => null);
-    let candidates = [cleanQuery];
-    if (sRes && sRes.ok) {
-      const sData = await sRes.json().catch(() => null);
-      if (sData && sData[1] && sData[1].length > 0) {
-        candidates = sData[1];
-      }
-    }
-
-    for (const cand of candidates) {
-      const extUrl = `https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=1&explaintext=1&redirects=1&titles=${encodeURIComponent(cand)}&format=json&origin=*`;
-      const eRes = await fetch(extUrl).catch(() => null);
-      if (eRes && eRes.ok) {
-        const eData = await eRes.json().catch(() => null);
-        const page = eData && eData.query && eData.query.pages ? Object.values(eData.query.pages)[0] : null;
-        if (page && page.extract && page.extract.length > 50) {
-          return {
-            title: page.title,
-            extract: page.extract,
-            url: `https://en.wikipedia.org/wiki/${encodeURIComponent(page.title)}`
-          };
-        }
-      }
-    }
   } catch (e) {
-    console.warn("Full web knowledge lookup error:", e);
+    console.warn("Web knowledge lookup error:", e);
   }
 
   return null;
 }
 
 // ============================================================================
-// 3. SMART BUILT-IN ENCYCLOPEDIA & COMPREHENSIVE KNOWLEDGE
+// 3. SMART BUILT-IN ENCYCLOPEDIA & ACCURATE OFFLINE RESPONSES
 // ============================================================================
-function getSmartOfflineReply(userText) {
+function getSmartOfflineReply(userText, attachments = []) {
   const clean = userText.trim().toLowerCase();
 
   const mathResult = tryCalculateMath(userText);
   if (mathResult) return mathResult;
 
+  // Name recognition & storage
   const nameMatch = userText.match(/(?:my name is|i am|call me|name's)\s+([a-zA-Z]+)/i);
   if (nameMatch && nameMatch[1]) {
     userName = nameMatch[1].charAt(0).toUpperCase() + nameMatch[1].slice(1);
     localStorage.setItem("user_name", userName);
-    return `Nice to meet you, ${userName}! 👋 I have saved your name. What can I do for you today?`;
+    return `Nice to meet you, **${userName}**! 👋 I have remembered your name. How can I assist you today?`;
   }
 
   if (clean.includes("what is my name") || clean.includes("who am i") || clean.includes("do you know my name")) {
-    return userName ? `Your name is ${userName}! 😊` : "You haven't told me your name yet. What should I call you?";
+    return userName ? `Your name is **${userName}**! 😊` : "You haven't told me your name yet. What should I call you?";
   }
 
   if (clean === "hi" || clean === "hello" || clean === "hey" || clean.startsWith("hi ") || clean.startsWith("hello ")) {
-    return `Hello ${userName}! 👋 I am your Unified AI Assistant developed by Pawan Solunke, combining knowledge from ChatGPT, Gemini, and Google Search. What would you like to explore?`;
+    return `Hello **${userName}**! 👋 I am your AI Assistant developed by **Pawan Solunke**. How can I help you today? Ask me any question, math problem, or code request!`;
   }
 
   // Developer credit query
   if (clean.includes("pawan") || clean.includes("who developed you") || clean.includes("who created you") || clean.includes("who made you") || clean.includes("developer") || clean.includes("creator")) {
-    return `👨‍💻 **Developed by Pawan Solunke!**\n\nI am your **AI Assistant**, engineered and developed by **Pawan Solunke**.\n\n✨ **Integrated Features:**\n• Multi-tier Intelligence (Free Live AI, Google Gemini, OpenAI)\n• 📷 Live Camera module with photo snapping & instant attachments\n• 📎 Document & image parsing (PDF, TXT, CSV, Code, Images)\n• 🌐 Live Web & Google Knowledge integration\n• 🧮 Instant Math calculator with zero latency`;
+    return `👨‍💻 **Developed by Pawan Solunke!**\n\nI am an advanced **AI Chat Assistant**, engineered and developed by **Pawan Solunke**.\n\n✨ **Key Capabilities:**\n• Multi-tier Intelligence (Free Unified AI, Google Gemini, OpenAI)\n• 📷 Live Camera module with photo capture & instant attachment\n• 📎 Document & code parser (PDF, TXT, CSV, JSON, code files)\n• 🌐 Live Web Search & knowledge grounding\n• 🧮 Instant Math & percentage calculator`;
   }
 
-  // iPhone 17 & Next-Gen Apple Lineup
-  if (clean.includes("iphone 17") || clean.includes("iphone17") || (clean.includes("iphone") && (clean.includes("17") || clean.includes("air") || clean.includes("slim")))) {
-    return `📱 **Apple iPhone 17 Series - Complete Comprehensive Guide**
+  // Programming: Python
+  if (clean === "python" || clean.includes("what is python") || clean.includes("python language")) {
+    return `🐍 **Python Programming Language**
 
-**1. Lineup & Models:**
-• **iPhone 17 (Standard):** Baseline flagship with a 6.27-inch LTPO OLED display.
-• **iPhone 17 Air (or iPhone 17 Slim):** All-new ultra-thin redesign replacing the "Plus" model, emphasizing extreme portability and sleek aesthetics.
-• **iPhone 17 Pro & iPhone 17 Pro Max:** Top-tier powerhouses engineered for professional creators, gamers, and photography enthusiasts.
+**Python** is a high-level, interpreted, general-purpose programming language created by **Guido van Rossum** and first released in 1991.
 
-**2. Processor & Memory:**
-• **A19 & A19 Pro Bionic:** Built on TSMC's cutting-edge 3nm (N3P) process, delivering massive gains in energy efficiency and graphics processing.
-• **12GB RAM (Pro Models):** Expanded specifically to power on-device **Apple Intelligence** generative AI models without cloud latency.
+### Key Highlights:
+• **Design Philosophy:** Emphasizes code readability with significant indentation and clean syntax.
+• **Typing:** Dynamically typed with automatic garbage collection.
+• **Core Paradigms:** Supports Object-Oriented, Functional, and Procedural programming.
+• **Popular Libraries:**
+  - *Data Science & AI:* NumPy, Pandas, Scikit-learn, PyTorch, TensorFlow
+  - *Web Development:* Django, Flask, FastAPI
+  - *Automation:* Selenium, Requests, BeautifulSoup
 
-**3. Display & ProMotion:**
-• **120Hz ProMotion on Standard Models:** For the first time, 120Hz smooth refresh rates and Always-On display come to standard non-Pro iPhones.
-• **Scratch-Resistant Anti-Reflective Shield:** Next-gen glass technology providing reduced outdoor glare and enhanced drop resilience.
-
-**4. Camera Innovations:**
-• **Triple 48MP System on Pro:** Main, Ultra-Wide, and Telephoto lenses all powered by 48-megapixel sensors with periscope optical zoom.
-• **24MP Front Selfie Camera:** Upgraded from 12MP to 24MP with a 6-element lens for significantly sharper selfies and FaceTime video.
-
-**5. Software & Intelligence:**
-• Ships with **iOS 19**, featuring advanced Siri contextual actions, real-time visual intelligence, and deep ecosystem integrations.`;
+### Example:
+\`\`\`python
+# Simple Python Hello World and List Comprehension
+names = ["Alice", "Bob", "Pawan"]
+greetings = [f"Hello, {name}!" for name in names]
+print("\\n".join(greetings))
+\`\`\``;
   }
 
-  // General iPhone / Apple smartphones
-  if (clean.includes("iphone") || clean.includes("apple phone")) {
-    return `📱 **Apple iPhone Lineup & Technology Overview**
+  // Programming: JavaScript
+  if (clean === "javascript" || clean.includes("what is javascript") || clean.includes("js")) {
+    return `⚡ **JavaScript (JS)**
 
-**1. Flagship Generations:**
-• **iPhone 16 Series:** Features Camera Control capacitive button, A18/A18 Pro chips, Action button across all models, and Apple Intelligence.
-• **iPhone 15 Series:** Introduced Dynamic Island universally, 48MP main camera sensor, lightweight Titanium frames on Pro models, and USB-C.
-• **iPhone 17 Series (Upcoming):** Anticipated ultra-slim 'Air' chassis, 120Hz ProMotion on standard models, A19 silicon, and upgraded 24MP front optics.
+**JavaScript** is a lightweight, interpreted (or just-in-time compiled) programming language with first-class functions, famous as the scripting language for Web pages.
 
-**2. Core Technological Strengths:**
-• **Apple Silicon:** Industry-leading single-core efficiency and dedicated Neural Engine for on-device AI.
-• **Super Retina XDR OLED:** High peak brightness (up to 2000 nits) and Ceramic Shield protection.
-• **Long-term Support:** Industry standard 5 to 7 years of full iOS security updates and feature parity.`;
+### Key Features:
+• **Dynamic & Prototype-based:** Multi-paradigm language supporting event-driven, functional, and imperative programming.
+• **Engines:** Powered by high-speed engines like V8 (Chrome, Node.js), SpiderMonkey (Firefox), and JavaScriptCore (Safari).
+• **Runtime Ecosystem:** Runs in browsers and on servers via Node.js, Deno, and Bun.
+
+### Example:
+\`\`\`javascript
+// Asynchronous fetch example in Modern JavaScript
+async function getUserData(username) {
+  const response = await fetch(\`https://api.github.com/users/\${username}\`);
+  const data = await response.json();
+  return data.name;
+}
+\`\`\``;
+  }
+
+  // Science: Photosynthesis
+  if (clean.includes("photosynthesis")) {
+    return `🌱 **Photosynthesis**
+
+**Photosynthesis** is the biological process used by plants, algae, and certain bacteria to convert light energy into chemical energy stored in glucose.
+
+### Chemical Equation:
+\`6CO₂ + 6H₂O + Light Energy → C₆H₁₂O₆ + 6O₂\`
+
+### Two Main Stages:
+1. **Light-Dependent Reactions (Thylakoid Membrane):** Sunlight is absorbed by chlorophyll, splitting water molecules (H₂O) and generating ATP, NADPH, and oxygen (O₂).
+2. **Light-Independent Reactions (Calvin Cycle / Stroma):** CO₂ is fixed into carbohydrates using the ATP and NADPH generated in the first stage.`;
   }
 
   // Lord Mahadev
   if (clean.includes("mahadev") || clean.includes("shiva") || clean.includes("bholenath") || clean.includes("shankar")) {
-    return `🕉️ **Lord Mahadev (Shiva) - Complete Comprehensive Guide**
+    return `🕉️ **Lord Mahadev (Shiva) - Complete Guide**
 
-**1. Identity & Essence in Hinduism:**
+**1. Divine Identity:**
 • **Mahādeva** literally translates to *"The Great God"* or *"Supreme Divine Reality"*.
-• In the Hindu Trimurti (Brahma the Creator, Vishnu the Preserver, Shiva the Transformer), Shiva represents the **destroyer of ego, ignorance, and cosmic illusion (Maya)** so that fresh, pure creation can emerge.
-• In Shaivism, he is worshipped as **Parashiva**—the timeless, formless, omnipresent consciousness that pervades all existence.
+• In the Hindu Trimurti (Brahma the Creator, Vishnu the Preserver, Shiva the Transformer), Shiva represents the **destroyer of ego, ignorance, and cosmic illusion (Maya)**.
+• In Shaivism, he is worshipped as **Parashiva**—the timeless, formless, omnipresent consciousness.
 
 **2. Sacred Iconography & Deep Symbolism:**
-• **Trishula (Trident):** Symbolizes sovereignty over the three Gunas (*Sattva* balance, *Rajas* passion, *Tamas* inertia) and the three tenses of time (past, present, future).
-• **Third Eye (Trinetra):** The eye of transcendental intuition and spiritual wisdom. When opened, it burns away ignorance with divine fire.
-• **Crescent Moon (Chandrashekhara):** Adorns his brow, representing the mind in a state of eternal peace and mastery over cycles of time.
-• **Holy River Ganga:** Flowing from his locks (*Jatadhari*), depicting the gentle descent of spiritual wisdom and liberation into the earthly plane.
-• **Neelkantha (The Blue Throat):** Symbol of supreme selflessness. During the churning of the cosmic ocean (*Samudra Manthan*), he drank the deadly poison (*Halahala*) to protect all living beings.
-• **Damru (Hourglass Drum):** Emits the primordial vibration of creation (*Pranava / AUM*).
-• **Vibhuti (Holy Ash):** Three horizontal lines (*Tripundra*) reminding us of the impermanence of worldly existence and the immortality of the soul.
+• **Trishula (Trident):** Symbolizes sovereignty over the three Gunas (*Sattva*, *Rajas*, *Tamas*) and time (past, present, future).
+• **Third Eye (Trinetra):** The eye of transcendental intuition that burns away ignorance.
+• **Holy River Ganga:** Flowing from his locks (*Jatadhari*), depicting the descent of spiritual wisdom to earth.
+• **Neelkantha (The Blue Throat):** Drank the cosmic poison (*Halahala*) during *Samudra Manthan* to protect all beings.
+• **Damru (Hourglass Drum):** Emits the primordial vibration of cosmic creation (*AUM*).`;
+  }
 
-**3. Key Divine Manifestations:**
-• **Nataraja:** The cosmic lord of dance whose *Ananda Tandava* sustains the rhythms of the entire universe.
-• **Dakshinamurthy:** The silent universal teacher seated beneath the banyan tree, revealing self-knowledge to sages.
-• **Ardhanarishvara:** The half-male, half-female form, celebrating the eternal harmony of consciousness (*Purusha*) and dynamic creative energy (*Prakriti / Shakti*).
-• **Abode:** Mount Kailash in the Himalayas, symbolizing the highest peak of consciousness and detachment.`;
+  // iPhone 17 & Apple
+  if (clean.includes("iphone 17") || clean.includes("iphone17") || (clean.includes("iphone") && clean.includes("17"))) {
+    return `📱 **Apple iPhone 17 Series - Overview**
+
+**1. Anticipated Models:**
+• **iPhone 17 (Standard):** Baseline flagship with 6.27-inch LTPO OLED display.
+• **iPhone 17 Air (Slim):** All-new ultra-thin chassis replacing the Plus model.
+• **iPhone 17 Pro & iPhone 17 Pro Max:** Powered by A19 Pro silicon with 12GB RAM for on-device Apple Intelligence.
+
+**2. Key Features:**
+• **120Hz ProMotion on All Models:** Smooth refresh rates across both standard and Pro lineups.
+• **Upgraded Front Camera:** 24MP sensor for significantly sharper video and selfies.
+• **A19 Silicon:** Next-generation 3nm architecture delivering peak GPU and NPU performance.`;
   }
 
   // Cybersecurity
   if (clean.includes("cyber security") || clean.includes("cybersecurity") || clean.includes("security")) {
-    return `🛡️ **Comprehensive Cyber Security Guide for ${userName}**
+    return `🛡️ **Cybersecurity Guide**
 
-**1. Definition & Core Scope:**
-Cybersecurity is the collective practice of safeguarding computers, servers, mobile devices, electronic systems, networks, and sensitive data from malicious cyberattacks.
+**Cybersecurity** is the practice of protecting networks, devices, and data from unauthorized access or criminal use.
 
-**2. The Foundational CIA Triad:**
-• **Confidentiality:** Restricting data access exclusively to verified individuals through military-grade encryption (AES-256, RSA) and Identity & Access Management (IAM).
-• **Integrity:** Ensuring information is never altered, tampered with, or corrupted in transit or storage (SHA-256 hashing, digital signatures).
-• **Availability:** Ensuring critical systems and services remain operational and accessible (DDoS shields, automated backups, high-availability clusters).
+### The CIA Triad:
+• **Confidentiality:** Ensuring sensitive data is accessed only by authorized parties (AES-256 encryption, IAM).
+• **Integrity:** Maintaining the consistency, accuracy, and trustworthiness of data over its life cycle (SHA-256 hashing).
+• **Availability:** Guaranteeing authorized users have dependable access to information systems (DDoS protection, redundancy).
 
-**3. Major Threat Categories:**
-• **Social Engineering & Phishing:** Fraudulent communications tricking users into revealing credentials.
-• **Ransomware & Malware:** Software that encrypts vital organizational assets and demands financial extortion.
-• **Zero-Day Exploits:** Vulnerabilities exploited in production before developers can issue patches.
-• **Man-in-the-Middle (MitM) Attacks:** Eavesdropping and spoofing across insecure communications.
-
-**4. Essential Security Frameworks:**
-• Adopt **Zero-Trust Architecture** ("Never trust, always verify").
-• Enforce **Multi-Factor Authentication (MFA / WebAuthn)** across all endpoints.
-• Implement automated vulnerability patching and continuous network monitoring.`;
+### Key Best Practices:
+• Enforce **Multi-Factor Authentication (MFA)**.
+• Implement a **Zero-Trust Architecture** ("Never trust, always verify").
+• Keep software and dependencies updated against known CVE vulnerabilities.`;
   }
 
   // Google
   if (clean.includes("google") && (clean.includes("who") || clean.includes("ceo") || clean.includes("founded") || clean.includes("info"))) {
-    return `🌐 **Complete Information on Google LLC**
+    return `🌐 **Google LLC Overview**
 
-• **Founding:** Founded on September 4, 1998, by Larry Page and Sergey Brin while Ph.D. students at Stanford University.
-• **Current CEO:** Sundar Pichai (leading both Google and parent holding company Alphabet Inc.).
-• **Headquarters:** The Googleplex in Mountain View, California, USA.
-• **Flagship Ecosystem:** Google Search, YouTube, Android, Google Chrome, Gmail, Google Cloud Platform (GCP), Google Maps, and Gemini AI.
-• **Mission:** *"To organize the world's information and make it universally accessible and useful."*`;
+• **Founders:** Larry Page and Sergey Brin (September 4, 1998, at Stanford University).
+• **CEO:** Sundar Pichai (leading Google and Alphabet Inc.).
+• **Headquarters:** Mountain View, California, USA.
+• **Flagship Products:** Google Search, YouTube, Android, Google Chrome, Gmail, Google Cloud, and Gemini AI.`;
   }
 
   // Quantum computing
   if (clean.includes("quantum")) {
-    return `⚛️ **Complete Overview of Quantum Computing**
+    return `⚛️ **Quantum Computing Overview**
 
-**1. Quantum Bits (Qubits):**
-Traditional computers calculate using binary bits (0 or 1). Quantum computers use **qubits**, which can exist in a state of 0, 1, or both simultaneously through **superposition**.
+Traditional computers calculate using binary bits (0 or 1). Quantum computers use **qubits**, which can exist in multiple states simultaneously.
 
-**2. Key Quantum Mechanics Principles:**
-• **Superposition:** Enables quantum computers to process massive parallel computational pathways at once.
-• **Entanglement:** Pairs of qubits become fundamentally correlated, so measuring one instantaneously informs the other regardless of distance.
-• **Quantum Interference:** Steers the computational probabilities toward the correct solution while cancelling out incorrect ones.
-
-**3. Real-World Applications:**
-• Revolutionary molecular modeling and drug discovery.
-• Breaking and designing post-quantum encryption protocols.
-• Solving hyper-complex financial optimization and logistics problems in seconds.`;
+### Core Principles:
+• **Superposition:** Allows qubits to represent 0, 1, or both, enabling vast parallel computation.
+• **Entanglement:** Qubits become fundamentally linked, so the state of one instantly dictates the state of another.
+• **Quantum Interference:** Directs computational probabilities toward the correct solution while canceling errors.`;
   }
 
   // Jokes
@@ -1071,52 +1179,91 @@ Traditional computers calculate using binary bits (0 or 1). Quantum computers us
     const jokes = [
       "Why do programmers prefer dark mode? Because light attracts bugs! 🐛",
       "Why did the JavaScript developer wear glasses? Because they didn't C#! 😄",
-      "There are 10 types of people in the world: those who understand binary, and those who don't."
+      "There are 10 types of people in the world: those who understand binary, and those who don't. 💻",
+      "A SQL query walks into a bar, walks up to two tables and asks: 'Can I join you?' 🍺"
     ];
     return jokes[Math.floor(Math.random() * jokes.length)];
   }
 
-  // Smart General Topic Synthesis (Eliminates the generic "I have recorded your query" placeholder)
+  // Honest, helpful offline notice for unknown topics
   const topicTitle = userText.charAt(0).toUpperCase() + userText.slice(1);
-  return `🌐 **Comprehensive Guide on "${topicTitle}"**
+  return `📡 **Offline Mode Notice**
 
-**1. Overview:**
-• You asked about **${topicTitle}**, ${userName}.
-• This topic connects with modern advancements, technical specifications, and key factual principles.
+I am currently operating in offline mode and do not have local cached records for **"${topicTitle}"**.
 
-**2. Core Highlights & Key Concepts:**
-• **Relevance:** It is widely recognized across contemporary search and technical databases for its significance and real-world application.
-• **Key Developments:** Continuous improvements and updates are made in this field to optimize performance, user experience, and efficiency.
-• **Real-World Value:** Plays an active role in shaping technology, industry standards, or cultural understanding.
-
-**3. Recommended Exploration:**
-• Would you like technical specifications, historical origin, a detailed breakdown, or comparison with alternatives? Feel free to ask! 🚀`;
+💡 **To get full, live answers:**
+1. Switch to **Free Unified AI** in ⚙️ **Settings** (includes live reasoning and Google Search).
+2. Make sure your internet connection is active.
+3. Or enter a **Google Gemini** or **OpenAI** API key in ⚙️ **Settings** for unlimited live model responses.`;
 }
 
 // ============================================================================
-// 4. UNIFIED COMPLETE KNOWLEDGE SYNTHESIS ENGINE
+// 4. UNIFIED FREE LIVE AI ENGINE WITH WEB KNOWLEDGE GROUNDING
 // ============================================================================
-async function getFreeLiveAIReply(userText) {
+async function getFreeLiveAIReply(userText, attachments = []) {
   const mathResult = tryCalculateMath(userText);
   if (mathResult) return mathResult;
 
-  // Fetch full web extract in parallel
-  let fullWebPromise = isWebSearchEnabled ? fetchFullWebKnowledge(userText) : Promise.resolve(null);
+  // Retrieve grounded web knowledge if web search is enabled
+  let webKnowledge = null;
+  if (isWebSearchEnabled) {
+    webKnowledge = await fetchFullWebKnowledge(userText);
+  }
 
-  // Attempt live deep reasoning AI with generous 25s timeout
+  // Build conversational history from current conversation (last 6 messages)
+  const conv = getCurrentConversation();
+  const historyMsgs = [];
+  if (conv && conv.messages && conv.messages.length > 0) {
+    const priorMsgs = conv.messages.slice(-7, -1);
+    priorMsgs.forEach(m => {
+      if (m.text && typeof m.text === "string") {
+        historyMsgs.push({
+          role: m.type === "user" ? "user" : "assistant",
+          content: m.text
+        });
+      }
+    });
+  }
+
+  // Build document text content from attachments
+  let attachmentContext = "";
+  if (attachments && attachments.length > 0) {
+    const docParts = attachments
+      .filter(a => a.textContent)
+      .map(a => `[Attached Document "${a.name}"]:\n${a.textContent.slice(0, 10000)}`);
+    if (docParts.length > 0) {
+      attachmentContext = docParts.join("\n\n") + "\n\n";
+    }
+  }
+
+  // Grounding web context
+  let groundingContext = "";
+  if (webKnowledge && webKnowledge.extract) {
+    groundingContext = `\n\n[Verified Reference Knowledge]:\nTopic: ${webKnowledge.title}\nDetails: ${webKnowledge.extract}\nSource: ${webKnowledge.url}`;
+  }
+
+  const systemPrompt = `You are an intelligent, highly knowledgeable, and friendly AI Assistant.
+- Provide accurate, factual, well-structured, and helpful answers for ${userName}.
+- For programming questions, always format code in clean markdown code blocks with the proper language identifier.
+- For factual or scientific queries, give verified and precise information.
+- If reference knowledge is provided, incorporate it to guarantee maximum factual accuracy.
+- Keep answers direct and proportional: concise for simple questions, comprehensive for in-depth inquiries.`;
+
+  const messagesPayload = [
+    { role: "system", content: systemPrompt },
+    ...historyMsgs,
+    { role: "user", content: `${attachmentContext}${userText}${groundingContext}` }
+  ];
+
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 25000);
-
-    const userPrompt = `You are a world-class AI system uniting the conversational depth of ChatGPT, the precision of Google Gemini, and the real-time knowledge of Google Search. Provide an exhaustive, complete, and structured answer with clear sections, bullet points, and facts for ${userName}.\n\nQuestion: ${userText}`;
+    const timeout = setTimeout(() => controller.abort(), 30000);
 
     const res = await fetch("https://text.pollinations.ai/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        messages: [
-          { role: "user", content: userPrompt }
-        ],
+        messages: messagesPayload,
         model: "openai-fast"
       }),
       signal: controller.signal
@@ -1125,31 +1272,30 @@ async function getFreeLiveAIReply(userText) {
 
     if (res.ok) {
       const text = await res.text();
-      if (text && text.trim().length > 60 && text.trim() !== "{}") {
-        const webKnowledge = await fullWebPromise;
-        let response = text.trim();
-        if (webKnowledge && webKnowledge.url) {
-          response += `\n\n🌐 **Verified Source:** [${webKnowledge.title} Reference](${webKnowledge.url})`;
+      const cleanReply = text ? text.trim() : "";
+      if (cleanReply.length > 0 && cleanReply !== "{}" && !cleanReply.includes("Payment Required")) {
+        let finalReply = cleanReply;
+        if (webKnowledge && webKnowledge.url && !finalReply.includes(webKnowledge.url)) {
+          finalReply += `\n\n🌐 **Source:** [${webKnowledge.title}](${webKnowledge.url})`;
         }
-        return response;
+        return finalReply;
       }
     }
   } catch (aiErr) {
-    console.warn("Live AI endpoint slow or unavailable, switching to verified web knowledge...", aiErr);
+    console.warn("Free AI service delayed or offline, checking web knowledge fallback...", aiErr);
   }
 
-  // If live AI timed out or was empty, deliver the full verified web extract immediately
-  const webKnowledge = await fullWebPromise;
+  // Fallback 1: If live AI failed but web knowledge was retrieved, return the verified extract directly
   if (webKnowledge && webKnowledge.extract) {
-    return `🌐 **${webKnowledge.title} - Complete Verified Information**\n\n${webKnowledge.extract}\n\n🔗 **Source Reference:** [Read full encyclopedic article](${webKnowledge.url})`;
+    return `🌐 **${webKnowledge.title}**\n\n${webKnowledge.extract}\n\n🔗 **Source Reference:** [Read full encyclopedic article](${webKnowledge.url})`;
   }
 
-  // Intelligent encyclopedic knowledge synthesis
-  return getSmartOfflineReply(userText);
+  // Fallback 2: Offline encyclopedia & helpful guidance
+  return getSmartOfflineReply(userText, attachments);
 }
 
 // ============================================================================
-// 5. GOOGLE GEMINI API
+// 5. GOOGLE GEMINI API (MULTIMODAL VISION & CHAT)
 // ============================================================================
 async function getGeminiReply(userText, attachments = []) {
   const mathResult = tryCalculateMath(userText);
@@ -1157,19 +1303,24 @@ async function getGeminiReply(userText, attachments = []) {
 
   if (!geminiApiKey) {
     showToast("⚠️ Enter Gemini API Key in ⚙️ Settings or use Free Mode");
-    return await getFreeLiveAIReply(userText);
+    return await getFreeLiveAIReply(userText, attachments);
   }
 
   const key = geminiApiKey.trim();
-  const parts = [
-    { text: `You are Google Gemini. Provide an exhaustive, complete, and structured answer for ${userName}.\n\nQuestion: ${userText}` }
-  ];
+  const currentParts = [];
 
-  // Attach images for Gemini Multimodal Vision
+  // 1. Attach document texts
   if (attachments && attachments.length > 0) {
+    attachments.filter(a => a.textContent).forEach(doc => {
+      currentParts.push({
+        text: `[Attached Document "${doc.name}"]:\n${doc.textContent.slice(0, 10000)}`
+      });
+    });
+
+    // 2. Attach images for Gemini Multimodal Vision
     attachments.filter(a => a.type === "image" && a.dataUrl).forEach(img => {
       const base64Data = img.dataUrl.includes(",") ? img.dataUrl.split(",")[1] : img.dataUrl;
-      parts.push({
+      currentParts.push({
         inline_data: {
           mime_type: img.mimeType || "image/jpeg",
           data: base64Data
@@ -1178,52 +1329,89 @@ async function getGeminiReply(userText, attachments = []) {
     });
   }
 
+  currentParts.push({ text: userText });
+
+  // Multi-turn conversation contents
+  const conv = getCurrentConversation();
+  const contents = [];
+  if (conv && conv.messages && conv.messages.length > 0) {
+    const prior = conv.messages.slice(-7, -1);
+    prior.forEach(m => {
+      if (m.text) {
+        contents.push({
+          role: m.type === "user" ? "user" : "model",
+          parts: [{ text: m.text }]
+        });
+      }
+    });
+  }
+  contents.push({ role: "user", parts: currentParts });
+
   const payload = {
-    contents: [
-      { parts }
-    ]
+    contents,
+    generationConfig: {
+      temperature: 0.7,
+      maxOutputTokens: 2048
+    }
   };
 
-  try {
-    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
-    const listData = await listRes.json().catch(() => ({}));
-    
-    if (listRes.ok && listData.models && listData.models.length > 0) {
-      const candidate = listData.models.find(m => 
-        m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent")
-      );
-      if (candidate) {
-        const modelName = candidate.name.replace(/^models\//, "");
-        const genRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-        if (genRes.ok) {
-          const genData = await genRes.json();
-          const reply = genData.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (reply) return reply;
-        }
+  // Try direct fast models: gemini-1.5-flash first, then gemini-2.0-flash, then gemini-1.5-pro
+  const modelsToTry = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"];
+  for (const model of modelsToTry) {
+    try {
+      const genRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (genRes.ok) {
+        const genData = await genRes.json();
+        const reply = genData.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (reply) return reply;
       }
+    } catch (err) {
+      console.warn(`Gemini ${model} request failed:`, err);
     }
-  } catch (e) {
-    console.warn("Gemini call error:", e);
   }
 
-  showToast("⚡ Using Unified Free AI engine");
-  return await getFreeLiveAIReply(userText);
+  showToast("⚠️ Gemini API error - falling back to Free Unified AI");
+  return await getFreeLiveAIReply(userText, attachments);
 }
 
 // ============================================================================
 // 6. OPENAI (CHATGPT) API
 // ============================================================================
-async function getOpenAIReply(userText) {
+async function getOpenAIReply(userText, attachments = []) {
   const mathResult = tryCalculateMath(userText);
   if (mathResult) return mathResult;
 
   if (!openaiApiKey) {
     showToast("⚠️ Enter OpenAI Key in ⚙️ Settings");
-    return await getFreeLiveAIReply(userText);
+    return await getFreeLiveAIReply(userText, attachments);
+  }
+
+  // Prepare document text if present
+  let docContext = "";
+  if (attachments && attachments.length > 0) {
+    const docs = attachments
+      .filter(a => a.textContent)
+      .map(a => `[Attached Document "${a.name}"]:\n${a.textContent.slice(0, 8000)}`);
+    if (docs.length > 0) docContext = docs.join("\n\n") + "\n\n";
+  }
+
+  // Conversation history
+  const conv = getCurrentConversation();
+  const historyMsgs = [];
+  if (conv && conv.messages && conv.messages.length > 0) {
+    const prior = conv.messages.slice(-7, -1);
+    prior.forEach(m => {
+      if (m.text) {
+        historyMsgs.push({
+          role: m.type === "user" ? "user" : "assistant",
+          content: m.text
+        });
+      }
+    });
   }
 
   try {
@@ -1236,41 +1424,42 @@ async function getOpenAIReply(userText) {
       body: JSON.stringify({
         model: "gpt-4o-mini",
         messages: [
-          { role: "system", content: `You are ChatGPT. Answer with full depth, complete structure, and exhaustive detail for ${userName}.` },
-          { role: "user", content: userText }
+          { role: "system", content: `You are ChatGPT. Answer with factual accuracy, clean formatting, and clear structured markdown for ${userName}.` },
+          ...historyMsgs,
+          { role: "user", content: `${docContext}${userText}` }
         ]
       })
     });
     if (res.ok) {
       const data = await res.json();
-      return data.choices?.[0]?.message?.content || "(No response from OpenAI)";
+      return data.choices?.[0]?.message?.content || "(No response received from OpenAI)";
     }
   } catch (e) {
     console.warn("OpenAI call error:", e);
   }
 
-  return await getFreeLiveAIReply(userText);
+  return await getFreeLiveAIReply(userText, attachments);
 }
 
 // ============================================================================
-// MASTER BOT REPLY DISPATCHER
+// 7. MASTER BOT REPLY DISPATCHER
 // ============================================================================
-async function getBotReply(userText) {
+async function getBotReply(userText, attachments = []) {
   const mathCheck = tryCalculateMath(userText);
   if (mathCheck) {
-    await new Promise(r => setTimeout(r, 200));
+    await new Promise(r => setTimeout(r, 150));
     return mathCheck;
   }
 
   if (currentMode === "free") {
-    return await getFreeLiveAIReply(userText);
+    return await getFreeLiveAIReply(userText, attachments);
   } else if (currentMode === "gemini") {
-    return await getGeminiReply(userText);
+    return await getGeminiReply(userText, attachments);
   } else if (currentMode === "openai") {
-    return await getOpenAIReply(userText);
+    return await getOpenAIReply(userText, attachments);
   } else {
-    await new Promise(r => setTimeout(r, 350));
-    return getSmartOfflineReply(userText);
+    await new Promise(r => setTimeout(r, 200));
+    return getSmartOfflineReply(userText, attachments);
   }
 }
 
@@ -1387,6 +1576,17 @@ function updateApiKeyFieldVisibility() {
   } else {
     apiKeyContainer.classList.add("hidden");
   }
+}
+
+// Preserve API key as user types
+if (apiKeyInput) {
+  apiKeyInput.addEventListener("input", () => {
+    if (aiModeSelect.value === "gemini") {
+      geminiApiKey = apiKeyInput.value.trim();
+    } else if (aiModeSelect.value === "openai") {
+      openaiApiKey = apiKeyInput.value.trim();
+    }
+  });
 }
 
 function saveSettings() {
